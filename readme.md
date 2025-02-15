@@ -1,7 +1,7 @@
-This is an extension to the minix file system adding CDC-based deduplication. This removes some duplicate data in files. Check the other readme for more information. As an example, here on this 80 MB disk image we have 5 files each with more than 30 MB, so more than 150 MB in total. The trick is that 4 of these files are quite similar, so we end up storing their common data only once. You can interact with this like any other filesystem but there are three ways that you can notice it's different. Firstly you have to preallocate some space to hold chunks. For this specific disk I chose 40 MB for normal files and 40 MB for chunks. A file can't be half in the chunked area and half in the normal area, so that means even though the disk is 80 MB the largest file you can store is 40 MB (well, slightly less than that when accounting for metadata). Secondly, the chunked files are read-only. You can remove them but their chunks remain in the chunked area so you can have some garbage remaining there. Thirdly, to make a file chunked you have to run a special command (specifically you send the full path of the file to a proc entry). Chunking doesn't happen automatically. All three of these issues were simplifications I made because otherwise it would be too difficult for me to implement.
+This is an extension to the minix file system adding CDC-based deduplication. This tries to remove duplicate data between files. Check the other readme for more technical information (it explains the source code too). As an example, here on this 80 MB disk image we have 5 files each with more than 30 MB, so more than 150 MB in total. The trick is that 4 of these files are quite similar, so we end up storing their common data only once. You can interact with this like any other filesystem but there are three ways that you can notice it's different. Firstly you have to preallocate some space to hold chunks. For this specific disk I chose 40 MB for normal files and 40 MB for chunks. A file can't be half in the chunked area and half in the normal area, so that means even though the disk is 80 MB the largest file you can store is 40 MB (well, slightly less than that when accounting for metadata). Secondly, the chunked files are read-only. You can remove them but their chunks remain in the chunked area so you can have some garbage remaining there. Thirdly, to make a file chunked you have to run a special command (specifically you send the full path of the file to a proc entry). Chunking doesn't happen automatically. All three of these issues were simplifications to make it easy enough for me to implement.
 
 # The demo disk
-```
+```console
 $ uname -r #kernel version
 6.12.10-arch1-1
 $ make mount
@@ -51,7 +51,7 @@ $ diff 1.txt a.txt | wc -c
 ```
 
 1.txt and a.txt were just 30 megabytes of some random data. I created them like this.
-```
+```console
 $ head -c 12m /dev/random | hexdump > 1.txt
 (...)
 $ sudo ../chunk 1.txt #

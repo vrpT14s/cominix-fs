@@ -40,19 +40,19 @@ I think that's it about the description.
 
 # File-level source code explanation
 For the minix-fs module on linux:
-inode.c - for handling inode formats and allocating them etc., as well as for dealing with superblocks and mounting
-bitmap.c - for block and inode allocation
-itree_*.c - by "itree" they mean the UFS tree I was talking about. This handles that structure.
-namei.c, dir.c - dentry and directory handling
-file.c - mostly glue code
+* inode.c - for handling inode formats and allocating them etc., as well as for dealing with superblocks and mounting
+* bitmap.c - for block and inode allocation
+* itree_*.c - by "itree" they mean the UFS tree I was talking about. This handles that structure.
+* namei.c, dir.c - dentry and directory handling
+* file.c - mostly glue code
 
 The files I've added:
-chunk_handler.c - handling the stack of chunks (i.e. the heap) and the hashtable
-gear_table.c - just an array of fixed random numbers that I use for gear hashing
-linked_list.h - handling the linked list of chunk hashes for each file
-md5_wrapper.h - handles hashing (not gear-hashing!) buffers (it's a wrapper for md5 in the linux crypto API)
-cdc.h - implements FastCDC (basically a complete copy of the pseudocode in the paper)
-file.c - Acts as glue code like before but also chunking files and reading chunked files happen here. I also set up the proc entry here when really it should be in a different file...
+* chunk_handler.c - handling the stack of chunks (i.e. the heap) and the hashtable
+* gear_table.c - just an array of fixed random numbers that I use for gear hashing
+* linked_list.h - handling the linked list of chunk hashes for each file
+* md5_wrapper.h - handles hashing (not gear-hashing!) buffers (it's a wrapper for md5 in the linux crypto API)
+* cdc.h - implements FastCDC (basically a complete copy of the pseudocode in the paper)
+* file.c - Acts as glue code like before but also chunking files and reading chunked files happen here. I also set up the proc entry here when really it should be in a different file...
 
 
 I also have to change inode.c in some places to handle the extra superblock.
