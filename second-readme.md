@@ -1,4 +1,5 @@
-Thu Feb 13 09:04:29 PM IST 2025
+*(This was what my readme was originally going to be but I thought it got too technical too quickly).*
+
 This is a filesystem for linux that does deduplication with content-defined chunking (CDC) as described in the FastCDC paper (Wen Xia et al., 2016)[1]. It breaks a file into chunks and puts these chunks in a hashtable, then stores a list of those hashes[i]. This way, if two files have a chunk in common, it's only stored once on disk. One way to break a file into chunks is just to break it into fixed size blocks one after another. This is called fixed size chunking (FSC). If you only replace bytes then this works nicely but if you add a byte in the middle of a file, all the bytes in every block will be shifted to the right, so they'll be considered new blocks since they have new hashes, so this means you have to use more storage. To get around this we make the boundaries depend on the data, so local features, that won't be bothered by inserting and deleting bytes in the middle. 
 
 # A description of CDC
