@@ -21,8 +21,7 @@ static block_t block_no(struct super_block *sb, blockoff_t off)
 
 static sector_t sector_no(struct super_block *sb, blockoff_t off)
 {
-	u8 log = sb->s_blocksize_bits;
-	return block_no(sb, off) << (log - 9);
+	return off >> 9;
 }
 
 static u64 inblock_offset(struct super_block *sb, blockoff_t off)
@@ -58,6 +57,14 @@ static blockoff_t chunk_alloc(struct super_block *sb, ssize_t size)
 		*brk = (block_no(sb, *brk) + 1) << log;
 	blockoff_t new = *brk;
 	*brk += sizeof(struct chunk_head) + size;
+	
+	//printk("break increased by %lld kb, is now at %lld mb %lld kb\n", size >> 10, *brk >> 20, (*brk >> 10) & ((1<<10)-1));
+	blockoff_t max_brk = cominix_sb(sb)->max_brk;
+	//printk("max break is %lld mb %lld kb\n", max_brk >> 20, (max_brk >> 10) & ((1<<10)-1));
+	if (*brk >= max_brk) {
+		printk("Heap ran out of space. Giving up.\n");
+		BUG();
+	}
 
 	mutex_unlock(&brk_lock);
 
@@ -69,13 +76,13 @@ void *load_blockoff(struct super_block *sb, blockoff_t off, ssize_t *bytes_left,
 {
 	BUG_ON(!off);
 	*bh = NULL;
-	*bh = sb_bread(sb, sector_no(sb, off));
+	*bh = sb_bread(sb, block_no(sb, off));
 	if (!*bh || IS_ERR(*bh)) {
-		printk("UNABLE TO LOAD sector_no %llx\n", sector_no(sb, off));
-		BUG_ON(1);
+		printk("UNABLE TO LOAD block %llx\n", block_no(sb, off));
+		BUG();
 	}
 	void *ptr = (*bh)->b_data;
-	BUG_ON(IS_ERR(ptr));
+	BUG_ON(!ptr || IS_ERR(ptr));
 	ptr += inblock_offset(sb, off);
 	*bytes_left = sb->s_blocksize - inblock_offset(sb, off);
 	return ptr;
@@ -119,15 +126,14 @@ blockoff_t chunk_search_hashtable(struct super_block *sb, u64 chunk_hash)
 //releases *bh and replaces it with the next block
 static inline char *get_next_block(struct super_block *sb, struct buffer_head **bh, int dirty)
 {
-	sector_t next_secno = (*bh)->b_blocknr;
+	block_t next_blockno = (*bh)->b_blocknr + 1;
 	u64 off = inblock_offset(sb, (*bh)->b_size);
 	if (off)
 		printk("why off not zero? off = %llx; bsize %lx and sbsize %lx and bits %lx", off, (*bh)->b_size, sb->s_blocksize, 1L << sb->s_blocksize_bits);
-	next_secno += (*bh)->b_size >> 9;
 	if (dirty) 
 		mark_buffer_dirty(*bh);
 	brelse(*bh);
-	*bh = sb_bread(sb, next_secno);
+	*bh = sb_bread(sb, next_blockno);
 	BUG_ON(!*bh);
 	return (*bh)->b_data;
 }
@@ -211,7 +217,7 @@ int chunk_reset_hashtable(struct super_block *sb)
 {
 	struct cominix_sb_info *msi = cominix_sb(sb);
 	msi->heap_brk = msi->hashtable + msi->hashtable_size;
-	printk("HASHTABLE IS %llx\n AND SIZE IS %llx\n", msi->hashtable, msi->hashtable_size);
+	printk("HASHTABLE IS %lld kb\nAND SIZE IS %lld kb\n", msi->hashtable / 1024, msi->hashtable_size / 1024);
 	//zeroes out the hashtable
 	return write_data_storage(sb, msi->hashtable, NULL, msi->hashtable_size);
 }

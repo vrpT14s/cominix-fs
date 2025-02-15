@@ -16,10 +16,6 @@ static inline block_t cpu_to_block(unsigned long n)
 	return n;
 }
 
-static inline block_t *i_data(struct inode *inode)
-{
-	return (block_t *)cominix_i(inode)->u.i2_data;
-}
 
 #define DIRCOUNT 7
 #define INDIRCOUNT(sb) (1 << ((sb)->s_blocksize_bits - 2))

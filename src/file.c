@@ -15,6 +15,11 @@
 #include <linux/buffer_head.h>
 #include "linked_list.h"
 
+static block_t get_list_head(struct inode *inode)
+{
+	return i_data(inode)[1];
+}
+
 void dump_head(struct super_block *sb, block_t block);
 static ssize_t 
 chunked_file_read(struct file *filp,
@@ -25,14 +30,14 @@ chunked_file_read(struct file *filp,
 	//printk("pos %lld < size %lld", *pos, filp->f_inode->i_size);
 	if (*pos >= filp->f_inode->i_size)
 		return 0;
-	struct super_block *sb = filp->f_inode->i_sb;
-	u32 *zones = get_zones(filp->f_inode);
-	BUG_ON(zones[0] != 1 || zones[9] != 1);
+	struct inode *inode = filp->f_inode;
+	struct super_block *sb = inode->i_sb;
+	BUG_ON(!inode_is_chunked(inode));
 
 	ssize_t found_pos = 0;
-	dump_head(sb, zones[1]);
+	//dump_head(sb, zones[1]);
 	struct chunk_entry chunk 
-		= ll_search_left(sb, zones[1], *pos, &found_pos);
+		= ll_search_left(sb, get_list_head(inode), *pos, &found_pos);
 	BUG_ON(!chunk.location);
 	BUG_ON(!chunk.size);
 	off_t in_chunk_offset = *pos - found_pos;
@@ -73,21 +78,25 @@ static void print_hash(char *digest)
 
 void dump_head(struct super_block *sb, block_t block)
 {
-//	struct buffer_head *bh 
-//		= sb_bread(sb, block << (sb->s_blocksize_bits - 9));
-//	printk("dumping block %x", block);
-//	for (int i = 0; i < 20; i++) {
-//		struct chunk_entry chunk = ((struct chunk_entry *)bh->b_data)[i];
-//		printk("loc %llx size %lld\n", chunk.location, chunk.size);
-//	}
-//	brelse(bh);
+#if 0
+	struct buffer_head *bh = sb_bread(sb, block);
+	printk("dumping block %x", block);
+	for (int i = 0; i < 20; i++) {
+		struct chunk_entry chunk = ((struct chunk_entry *)bh->b_data)[i];
+		printk("loc %llx size %lld\n", chunk.location, chunk.size);
+	}
+	brelse(bh);
+#endif
 }
 
 static void print_heap_info(struct super_block *sb)
 {
 	struct cominix_sb_info *msi = cominix_sb(sb);
 	printk("Heap size is %lld KB.\n", (msi->heap_brk - (msi->hashtable + msi->hashtable_size)) >> 10);
+	long free_blocks = cominix_count_free_blocks(sb);
+	printk("%d free blocks (%lld kb).\n", free_blocks, free_blocks * sb->s_blocksize >> 10);
 }
+
 
 static int
 chunk_and_replace(struct file *filp)
@@ -149,10 +158,17 @@ chunk_and_replace(struct file *filp)
 	}
 	BUG_ON(filp->f_pos != filp->f_inode->i_size);
 	loff_t fsize = filp->f_inode->i_size;
-	cominix_truncate(filp->f_inode);
-	u32 *zones = cominix_i(filp->f_inode)->u.i2_data;
-	zones[0] = 1; //the 1's are type info
-	zones[9] = 1;
+	print_heap_info(sb);
+
+	//truncate doesn't mean remove all data, it means change to fit the f_size
+	//(increasing too)
+	filp->f_inode->i_size = 0; //IMPORTANT!!
+	cominix_truncate(filp->f_inode); 
+	filp->f_inode->i_size = fsize;
+
+	print_heap_info(sb);
+	switch_inode_to_chunked(filp->f_inode);
+	u32 *zones = i_data(filp->f_inode);
 
 	BUG_ON(head >= 1L << 32);
 	BUG_ON(ll_size >= 1L << 32);
@@ -160,12 +176,13 @@ chunk_and_replace(struct file *filp)
 	zones[1] = (u32) head;
 	zones[2] = (u32) ll_size;
 	zones[3] = (u32) end;
-	filp->f_inode->i_size = fsize;
 	
 	struct writeback_control wbc;
 	wbc.sync_mode = WB_SYNC_NONE;
 	int ret = cominix_write_inode(filp->f_inode, &wbc);
 	BUG_ON(ret);
+
+	//sets the file operations
 	cominix_set_inode(filp->f_inode, 0);
 
 	print_heap_info(sb);
@@ -201,16 +218,16 @@ static ssize_t fail_write (struct file *filp,
 const struct inode_operations cominix_file_inode_operations = {};
 const struct file_operations cominix_file_operations = {
 	.llseek		= generic_file_llseek,
-	.read_iter	= generic_file_read_iter,
-	.write_iter	= generic_file_write_iter,
-	.mmap		= generic_file_mmap,
+	.read_iter	= generic_file_read_iter, 
+	.write_iter	= generic_file_write_iter, //change this to check and write?
+	//.mmap		= generic_file_mmap, //same?
 	.fsync		= generic_file_fsync,
-	.splice_read	= filemap_splice_read,
+	//.splice_read	= filemap_splice_read,
 };
 const struct file_operations chunked_file_operations = {
 	.llseek		= generic_file_llseek,
 	.read		= chunked_file_read,
-	.write		= fail_write,
+	//.write		= fail_write,
 };
 
 #include <linux/proc_fs.h>
@@ -235,7 +252,7 @@ ssize_t cminix_proc_write(struct file *proc_file,
 	buf_copy[count] = '\0';
 	if (buf_copy[count - 1] == '\n')
 		buf_copy[count - 1] = '\0';
-	printk("CMINIX PROC WRITE: %ld bytes were written. CONTENTS:", count);
+	printk("CMINIX PROC WRITE: %ld bytes were written to proc. CONTENTS:", count);
 	printk("%s\n", buf_copy);
 	printk("DONE.\n");
 	
@@ -260,8 +277,12 @@ ssize_t cminix_proc_write(struct file *proc_file,
 			printk("ERROR?! Unknown file ops pointer.\n");
 		goto general_err;
 	}
+	printk("Proceeding with chunking '%s'.\n", buf_copy);
 	kfree(buf_copy);
+	inode_lock(filp->f_inode);
 	chunk_and_replace(filp);
+	inode_unlock(filp->f_inode);
+
 	filp_close(filp, NULL);
 	return count;
 general_err:
@@ -279,7 +300,7 @@ static const struct proc_ops cminix_proc_ops = {
 void __init cminix_proc_init(void)
 {
 	//i could make a separate dir for each bdev
-	struct proc_dir_entry *base = proc_mkdir("fs/cminix", NULL);
+	struct proc_dir_entry *base = proc_mkdir("fs/cominix", NULL);
 	if (!base)
 		return;
 	proc_create("chunker", 0, base, &cminix_proc_ops);
@@ -288,6 +309,6 @@ void __init cminix_proc_init(void)
 void cminix_proc_clean(void);
 void cminix_proc_clean(void)
 {
-	remove_proc_subtree("fs/cminix", NULL);
+	remove_proc_subtree("fs/cominix", NULL);
 }
 

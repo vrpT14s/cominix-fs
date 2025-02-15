@@ -49,6 +49,7 @@ struct cominix_sb_info {
 	blockoff_t hashtable;
 	blockoff_t hashtable_size;
 	blockoff_t heap_brk;
+	blockoff_t max_brk;
 };
 
 extern struct inode *cominix_iget(struct super_block *, unsigned long);
@@ -116,14 +117,24 @@ void __init cminix_proc_init(void);
 void cminix_proc_clean(void);
 extern struct file_system_type cominix_fs_type;
 extern const struct file_operations chunked_file_operations;
-static inline u32 *get_mark_indirect(struct inode *inode)
+
+static inline block_t *i_data(struct inode *inode)
 {
-	return &cominix_i(inode)->u.i2_data[9];
+	return (block_t *)cominix_i(inode)->u.i2_data;
 }
-static inline u32 *get_zones(struct inode *inode)
+
+static void switch_inode_to_chunked(struct inode *inode)
 {
-	return cominix_i(inode)->u.i2_data;
+	i_data(inode)[0] = (u32)-1; //Yes this is a hack
+	i_data(inode)[9] = (u32)-1;
 }
+
+static int inode_is_chunked(struct inode *inode)
+{
+	return (i_data(inode)[0] == (u32)-1) 
+	    && (i_data(inode)[9] == (u32)-1);
+}
+
 
 
 #if defined(CONFIG_MINIX_FS_NATIVE_ENDIAN) && \

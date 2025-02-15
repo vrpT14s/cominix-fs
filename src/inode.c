@@ -26,7 +26,7 @@ typedef u32 block_t;
 struct buffer_head *load_block(struct super_block *sb, block_t block)
 {
 	BUG_ON(sb->s_blocksize_bits < 9);
-	return sb_bread(sb, block << (sb->s_blocksize_bits - 9));
+	return sb_bread(sb, block);
 }
 
 //int cominix_write_inode(struct inode *inode,
@@ -229,10 +229,12 @@ static int cminix_fill_extra_super(struct super_block *sb)
 		brelse(bh);
 		return 0;
 	}
+	printk("esb_loc is %d\n", esb_loc);
 	bh = load_block(sb, esb_loc);
 	BUG_ON(!bh || IS_ERR(bh));
 	struct cminix_extra_super_block *esb = (void *)bh->b_data;
 	sbi->hashtable = esb->hashtable_location;
+	printk("hashtable location is %lld kb (sector no. %lld)\n", esb->hashtable_location >> 10, esb->hashtable_location >> 9);
 	sbi->hashtable_size = esb->hashtable_size;
 	printk("hashtable size is %d kb\n", esb->hashtable_size >> 10);
 	sbi->heap_brk = esb->heap_brk;
@@ -301,6 +303,7 @@ static int cominix_fill_super(struct super_block *s, void *data, int silent)
 	sbi->s_version = MINIX_V3;
 	sbi->s_mount_state = MINIX_VALID_FS;
 	sb_set_blocksize(s, m3s->s_blocksize);
+	printk("blocksize is %lld bytes\n", m3s->s_blocksize);
 	s->s_max_links = MINIX2_LINK_MAX;
 
 	if (!cominix_check_superblock(s))
@@ -317,7 +320,9 @@ static int cominix_fill_super(struct super_block *s, void *data, int silent)
 	ret = cminix_fill_extra_super(s);
 	if (ret)
 		goto out_illegal_sb;
-	u64 new_nzones = (sbi->hashtable >> s->s_blocksize_bits) - sbi->s_firstdatazone;
+	u64 new_nzones = sbi->hashtable >> s->s_blocksize_bits;
+	//nzones is the total number of blocks on the whole disk
+	sbi->max_brk = sbi->s_nzones * s->s_blocksize;
 	BUG_ON(new_nzones > sbi->s_nzones);
 	sbi->s_nzones = new_nzones;
 
@@ -542,8 +547,7 @@ void cominix_set_inode(struct inode *inode, dev_t rdev)
 		inode->i_op = &cominix_file_inode_operations;
 		inode->i_fop = &cominix_file_operations;
 		inode->i_mapping->a_ops = &cominix_aops;
-		if (get_zones(inode)[0] == 1 
-		 && get_zones(inode)[9] == 1) {
+		if (inode_is_chunked(inode)) {
 			inode->i_fop = &chunked_file_operations;
 			inode->i_mapping->a_ops = &empty_aops;
 		}
@@ -680,6 +684,18 @@ int cominix_getattr(struct mnt_idmap *idmap, const struct path *path,
  */
 void cominix_truncate(struct inode * inode)
 {
+	if (inode_is_chunked(inode)) {
+		/* if the size increases then that will
+		cause a kernel panic when the ll_search_left
+		returns a NULL, so I don't need to worry about it.
+		(The BUG() is already happening I mean) */
+		/* if the size decreases then I'm already kind of handling that with the pos,
+		except that the read might return a little bit more, but its an odd edge case
+		that I'm not worried about. */
+		WARN_ON(inode->i_size);
+		printk("Chunked inode is being removed. TODO: delete the linked list in the node.\n");
+		return;
+	}
 	if (!(S_ISREG(inode->i_mode) || S_ISDIR(inode->i_mode) || S_ISLNK(inode->i_mode)))
 		return;
 	V2_cominix_truncate(inode);
@@ -740,6 +756,7 @@ out1:
 
 static void __exit exit_cominix_fs(void)
 {
+	cminix_proc_clean();
         unregister_filesystem(&cominix_fs_type);
 	destroy_inodecache();
 }

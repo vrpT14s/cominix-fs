@@ -163,6 +163,7 @@ static int get_block(struct inode * inode, sector_t block,
 		goto out;
 
 reread:
+	BUG_ON((i_data(inode))[0] == 1 || (i_data(inode))[1] == 1);
 	partial = get_branch(inode, depth, offsets, chain, &err);
 
 	/* Simplest case - block found, no allocation needed */
