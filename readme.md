@@ -85,3 +85,8 @@ Using a procfs entry might be kind of a hack. I was initially considering using 
 This was pretty interesting so I've been making a list of these. To my knowledge there aren't any bugs left in the program. There are some untreated error scenarios where I cause a BUG() on purpose, that isn't what I'm referring to.
 
 -- I'll write this later
+
+# This project moving on
+I feel happy about where this is right now (Well, specifically that it has no obvious bugs). I felt like I learnt about design and complexity from it, and obviously some details about the kernel. Initially I was trying to optimize everything and that's understandable, but I think the focus should be on designing it so that it can be upgraded and optimized later, where we replace the flesh and the muscles but keep the skeleton and the relative placements constant. In reality you make mistakes and misunderstand things so if you try to optimize from the beginning, debugging will be impossible, because you have no skeleton to work on top of. Of course making this kind of structure does limit the possible communication and efficiencies that can be made between organs, but I'd rather start with an overly rigid skeleton and break bones and make exceptions when necessary instead of starting with nothing at all. But yes, I am saying here that I will probably not making the best program I could theoretically be making. 
+
+I probably won't do anything with this except for fixing bugs if I find any. I might come back if I want to learn more about memory management.
