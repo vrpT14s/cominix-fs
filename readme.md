@@ -18,7 +18,7 @@ drwxr-xr-x 5 user user 4.0K Feb 15 21:33 ..
 -r--r--r-- 1 user user  30M Feb 15 14:50 3.txt
 -r--r--r-- 1 user user  34M Feb 15 14:53 4.txt
 -rw-r--r-- 1 user user  37M Feb 15 14:54 a.txt
-$ du --apparent-size -h
+$ du --apparent-size -h #the sum of the file sizes
 159M    .
 $ lsblk /dev/loop0
 NAME  MAJ:MIN RM SIZE RO TYPE MOUNTPOINTS
@@ -54,11 +54,13 @@ $ diff 1.txt a.txt | wc -c
 ```console
 $ head -c 12m /dev/random | hexdump > 1.txt
 (...)
-$ sudo ../chunk 1.txt #
+$ sudo ../chunk 1.txt
 (...)
-$ cat 1.txt > 2.txt #similarly for 3 and 4
+$ cat 1.txt > 2.txt 
 $ vim 2.txt
 $ sudo ../chunk 2.txt 
+(...)
+$ #repeat the last three lines for 3 and 4 too
 (...)
 $ head -c 12m /dev/random | hexdump > a.txt
 ```
