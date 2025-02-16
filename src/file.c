@@ -270,6 +270,7 @@ ssize_t cminix_proc_write(struct file *proc_file,
 		printk("Attempted to chunk non-file. (Was it a directory?)\n");
 		goto general_err;
 	}
+	inode_lock(filp->f_inode);
 	if (filp->f_inode->i_fop != &cominix_file_operations) {
 		if (filp->f_inode->i_fop == &chunked_file_operations)
 			printk("'%s' has already been chunked.\n", buf_copy);
@@ -279,7 +280,6 @@ ssize_t cminix_proc_write(struct file *proc_file,
 	}
 	printk("Proceeding with chunking '%s'.\n", buf_copy);
 	kfree(buf_copy);
-	inode_lock(filp->f_inode);
 	chunk_and_replace(filp);
 	inode_unlock(filp->f_inode);
 
