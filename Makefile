@@ -33,7 +33,9 @@ diskimage:
 	dd if=/dev/zero of=$(disk) bs=1M count=$(disksize)
 	make mkfs
 
+
 mount:
+	printf "IF mnt/ DOESNT EXIST THEN MKDIR IT! I can't add empty directories in git.\n"
 	make insmod
 	sudo mount -t cominix -o loop $(disk) mnt
 
