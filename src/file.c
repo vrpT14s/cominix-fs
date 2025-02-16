@@ -276,6 +276,8 @@ ssize_t cminix_proc_write(struct file *proc_file,
 			printk("'%s' has already been chunked.\n", buf_copy);
 		else
 			printk("ERROR?! Unknown file ops pointer.\n");
+
+		inode_unlock(filp->f_inode);
 		goto general_err;
 	}
 	printk("Proceeding with chunking '%s'.\n", buf_copy);
